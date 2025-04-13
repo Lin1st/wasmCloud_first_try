@@ -639,7 +639,6 @@ where
                                 let handler = handler.clone();
                                 let pre = self.instance_pre.clone();
                                 debug!(?instance_name, ?name, "serving instance function");
-                                println!("!!!!!!!!!!!!!!!!!!! {:?} ", ty);
                                 let func = srv
                                     .serve_function(
                                         move || {
@@ -777,11 +776,6 @@ where
         I: AsyncRead + wrpc_transport::Index<I> + Send + Sync + Unpin + 'static,
         O: AsyncWrite + wrpc_transport::Index<O> + Send + Sync + Unpin + 'static,
     {
-        println!(
-            "Instance::call invoked for instance `{}` and function `{}`",
-            instance_name, func_name
-        );
-
         // Create a new store for the invocation
         let mut store = new_store(
             &self.engine,
@@ -825,11 +819,6 @@ where
             .get_func(&mut store, func_idx)
             .with_context(|| format!("Failed to get function export `{func_name}`"))?;
 
-        println!(
-            "Function `{}` resolved successfully in the component",
-            func_name
-        );
-
         // Get the top-level component type
         let component_type = self.pre.component().component_type();
         let mut component_func = None;
@@ -870,19 +859,9 @@ where
         let component_func = component_func
             .with_context(|| format!("Function `{}` not found in component exports", func_name))?;
 
-        println!("!!!!!!!!!!!!!!!!!!! {:?} ", component_func);
-
-        println!(
-            "Function `{}` found in component exports with parameters and results",
-            func_name
-        );
-
         // Extract parameter and result types
         let params_ty: Vec<_> = component_func.params().collect();
         let results_ty: Vec<_> = component_func.results().collect();
-
-        println!("Params type {:?} ", params_ty);
-        println!("Results type{:?} ", results_ty);
 
         let mut guest_resources = Vec::new();
         collect_component_resources(&self.engine, &self.pre.component().component_type(), &mut guest_resources);
@@ -899,11 +878,6 @@ where
         )
         .await
         .context("Failed to invoke the function")?;
-
-        println!(
-            "Function `{}` executed successfully in instance `{}`",
-            func_name, instance_name
-        );
 
         Ok(())
     }

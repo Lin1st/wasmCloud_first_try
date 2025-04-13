@@ -231,19 +231,11 @@ impl AsyncWrite for EitherOutgoing {
         match self.get_mut() {
             EitherOutgoing::Local(ref mut local) => {
                 let pinned = Pin::new(local);
-                let poll_result = pinned.poll_write(cx, data);
-                if let Poll::Ready(Ok(written)) = &poll_result {
-                    println!("EitherOutgoing::Local: wrote {} bytes", written);
-                }
-                poll_result
+                pinned.poll_write(cx, data)
             }
             EitherOutgoing::Remote(ref mut remote) => {
                 let pinned = Pin::new(remote);
-                let poll_result = pinned.poll_write(cx, data);
-                if let Poll::Ready(Ok(written)) = &poll_result {
-                    println!("EitherOutgoing::Remote: wrote {} bytes", written);
-                }
-                poll_result
+                pinned.poll_write(cx, data)
             }
         }
     }
@@ -255,19 +247,11 @@ impl AsyncWrite for EitherOutgoing {
         match self.get_mut() {
             EitherOutgoing::Local(ref mut local) => {
                 let pinned = Pin::new(local);
-                let poll_result = pinned.poll_flush(cx);
-                if let Poll::Ready(Ok(())) = &poll_result {
-                    println!("EitherOutgoing::Local: flush succeeded");
-                }
-                poll_result
+                pinned.poll_flush(cx)
             }
             EitherOutgoing::Remote(ref mut remote) => {
                 let pinned = Pin::new(remote);
-                let poll_result = pinned.poll_flush(cx);
-                if let Poll::Ready(Ok(())) = &poll_result {
-                    println!("EitherOutgoing::Remote: flush succeeded");
-                }
-                poll_result
+                pinned.poll_flush(cx)
             }
         }
     }
@@ -279,26 +263,16 @@ impl AsyncWrite for EitherOutgoing {
         match self.get_mut() {
             EitherOutgoing::Local(ref mut local) => {
                 let pinned = Pin::new(local);
-                let poll_result = pinned.poll_shutdown(cx);
-                if let Poll::Ready(Ok(())) = &poll_result {
-                    println!("EitherOutgoing::Local: shutdown succeeded");
-                }
-                poll_result
+                pinned.poll_shutdown(cx)
             }
             EitherOutgoing::Remote(ref mut remote) => {
                 let pinned = Pin::new(remote);
-                let poll_result = pinned.poll_shutdown(cx);
-                if let Poll::Ready(Ok(())) = &poll_result {
-                    println!("EitherOutgoing::Remote: shutdown succeeded");
-                }
-                poll_result
+                pinned.poll_shutdown(cx)
             }
         }
     }
-
 }
 
-// Implement wrpc_transport::Index<EitherOutgoing> for EitherOutgoing
 impl Index<EitherOutgoing> for EitherOutgoing {
     fn index(
         &self,
@@ -331,27 +305,16 @@ impl AsyncRead for EitherIncoming {
         match self.get_mut() {
             EitherIncoming::Local(ref mut local) => {
                 let pinned = Pin::new(local);
-                let poll_result = pinned.poll_read(cx, buf);
-                if let Poll::Ready(Ok(())) = &poll_result {
-                    let n = buf.filled().len();
-                    println!("EitherIncoming::Local: read {} bytes", n);
-                }
-                poll_result
+                pinned.poll_read(cx, buf)
             }
             EitherIncoming::Remote(ref mut remote) => {
                 let pinned = Pin::new(remote);
-                let poll_result = pinned.poll_read(cx, buf);
-                if let Poll::Ready(Ok(())) = &poll_result {
-                    let n = buf.filled().len();
-                    println!("EitherIncoming::Remote: read {} bytes", n);
-                }
-                poll_result
+                pinned.poll_read(cx, buf)
             }
         }
     }
 }
 
-// Implement wrpc_transport::Index<EitherIncoming> for EitherIncoming
 impl Index<EitherIncoming> for EitherIncoming {
     fn index(
         &self,
@@ -390,23 +353,6 @@ impl wrpc_transport::Invoke for Handler {
     where
         P: AsRef<[Option<usize>]> + Send + Sync,
     {
-
-        // Print some arguments to figure out how it works
-        {
-            println!("Lattice: {}", self.lattice);
-            println!("Component ID: {}", self.component_id);
-
-            let components = self.components.read().await;
-            println!("Components: {:?}", components.keys().collect::<Vec<_>>());
-
-            let targets = self.targets.read().await;
-            println!("Targets: {:?}", targets);
-
-            let instance_links = self.instance_links.read().await;
-            println!("Instance Links: {:?}", instance_links);
-        }
-
-        // Added for in-host invocation. Mind the redundancy
         let components = self.components.read().await;
 
         let links = self.instance_links.read().await;
@@ -426,13 +372,9 @@ impl wrpc_transport::Invoke for Handler {
             None => instance.split_once('@').map_or(instance, |(l, _)| l),
         };
 
-        println!("Target instance: {}", target_instance);
-
         let link_name = targets
             .get(target_instance)
             .map_or("default", AsRef::as_ref);
-
-        println!("Link name: {}", link_name);
 
         let instances = links.get(link_name).with_context(|| {
             warn!(
@@ -445,7 +387,6 @@ impl wrpc_transport::Invoke for Handler {
             format!("link `{link_name}` not found for instance `{target_instance}`")
         })?;
 
-        println!("Instances: {:?}", instances);
 
         // Determine the lattice target ID we should be sending to
         let id = instances.get(target_instance).with_context(||{
@@ -458,14 +399,8 @@ impl wrpc_transport::Invoke for Handler {
             format!("failed to call `{func}` in instance `{instance}` (failed to find a configured link with name `{link_name}` from component `{id}`, please check your configuration)", id = self.component_id)
         })?;
 
-        println!("Lattice target ID: {}", id);
 
         if let Some(component) = components.get(id.as_ref()) {
-            println!("In host invocation");
-
-            // Print the `func` and `params` arguments
-            println!("Function to invoke: {:?}", func);
-            println!("Parameters (bytes): {:?}", params);
 
             // Create two pairs of DuplexStreams
             // Use tokio::io::duplex instead of std::sync::mpsc::channel
